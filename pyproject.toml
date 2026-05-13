@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "k8s-piper"
+version = "0.1.0"
+description = "A tool for extracting and analyzing information from kubectl output"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.6"
+authors = [
+    { name = "tkdpython" },
+]
+keywords = ["kubernetes", "k8s", "certificates", "kubectl", "security", "tls", "x509"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "cryptography>=2.8",
+    "PyYAML>=5.1",
+    # rich 9.x is the last series that supports Python 3.6; on Python 3.7+ any
+    # version from 9.0 onwards works, so we let pip choose the newest compatible
+    # release automatically while keeping 3.6 users on the 9.x branch.
+    "rich>=9.0,<10.0; python_version < '3.7'",
+    "rich>=9.0; python_version >= '3.7'",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-cov>=2.0",
+]
+
+[project.scripts]
+k8s-piper = "k8s_piper.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/tkdpython/k8s-piper"
+Repository = "https://github.com/tkdpython/k8s-piper"
+Issues = "https://github.com/tkdpython/k8s-piper/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["k8s_piper*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
