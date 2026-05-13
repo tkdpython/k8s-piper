@@ -507,7 +507,7 @@ def display_rbac(manifest, rbac_info):
     )
 
     # Role / ClusterRole — show policy rules
-    if rbac_info.rules is not None and rbac_info.kind in ("Role", "ClusterRole"):
+    if rbac_info.kind in ("Role", "ClusterRole"):
         _console.print()
         if rbac_info.rules:
             _console.rule("[bold white]\U0001f4dc  Policy Rules[/bold white]")

@@ -52,8 +52,7 @@ def _analyse_rule(rule):
     wildcard_resource = "*" in resources
     wildcard_group = "*" in api_groups
 
-    # A rule is considered dangerous when it grants all verbs on all resources
-    # (full wildcard) or all verbs on specific sensitive resources.
+    # A rule is considered dangerous when it grants all verbs on all resources.
     is_dangerous = wildcard_verb and wildcard_resource
 
     return {
