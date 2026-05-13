@@ -1,10 +1,10 @@
-"""Rich terminal output for k8s-piper cert analysis results.
+"""Rich terminal output for k8s-piper analysis results.
 
 Compatible with rich 9.x (Python 3.6) through rich 13.x (Python 3.12+).
 Avoids rich.console.Group which was only introduced in rich 10.2.
 """
 
-from typing import List
+from typing import List, Optional
 
 from rich.console import Console
 from rich.panel import Panel
@@ -252,5 +252,294 @@ def display_certs(manifest, bundles):
 
         for err in bundle.errors:
             _console.print("[red]  Warning: {0}[/red]".format(err))
+
+    _console.print()
+
+
+# ---------------------------------------------------------------------------
+# Workload display (images, resources, security)
+# ---------------------------------------------------------------------------
+
+def _icon_bool(value, true_style="green", false_style="dim"):
+    # type: (Optional[bool], str, str) -> Text
+    """Return a styled tick/cross Text for a boolean value."""
+    if value is True:
+        return Text("\u2713 Yes", style=true_style)
+    if value is False:
+        return Text("\u2717 No", style=false_style)
+    return Text("(not set)", style="dim")
+
+
+def _resource_cell(value, label=""):
+    # type: (Optional[str], str) -> Text
+    """Return a styled cell for a resource value; warns when absent."""
+    if value:
+        return Text(value)
+    return Text("\u26a0 (none)", style="bold yellow")
+
+
+def _build_images_table(containers, init_containers):
+    # type: (list, list) -> Table
+    tbl = Table(box=box.SIMPLE_HEAD, show_header=True, expand=True)
+    tbl.add_column("Container", style="cyan", no_wrap=True)
+    tbl.add_column("Type", style="dim", no_wrap=True)
+    tbl.add_column("Image", no_wrap=False)
+    tbl.add_column("Tag / Digest")
+    tbl.add_column("Pull Policy")
+
+    def _add_rows(ctrs, ctype):
+        for c in ctrs:
+            tag_cell = Text()
+            if c.has_digest:
+                tag_cell.append("@digest", style="dim cyan")
+            elif c.image_tag is None:
+                tag_cell.append("\u26a0 (none \u2014 implicit latest)", style="bold yellow")
+            elif c.image_tag == "latest":
+                tag_cell.append("\u26a0 latest", style="bold yellow")
+            else:
+                tag_cell.append(c.image_tag, style="green")
+
+            policy = c.pull_policy or "(unset)"
+            if policy == "Always":
+                policy_cell = Text("Always", style="yellow")
+            else:
+                policy_cell = Text(policy)
+
+            tbl.add_row(c.name, ctype, c.image_name or c.image, tag_cell, policy_cell)
+
+    _add_rows(init_containers, "init")
+    _add_rows(containers, "app")
+    return tbl
+
+
+def _build_resources_table(containers, init_containers):
+    # type: (list, list) -> Table
+    tbl = Table(box=box.SIMPLE_HEAD, show_header=True, expand=True)
+    tbl.add_column("Container", style="cyan", no_wrap=True)
+    tbl.add_column("Type", style="dim", no_wrap=True)
+    tbl.add_column("CPU Request")
+    tbl.add_column("CPU Limit")
+    tbl.add_column("Mem Request")
+    tbl.add_column("Mem Limit")
+
+    def _add_rows(ctrs, ctype):
+        for c in ctrs:
+            r = c.resources
+            tbl.add_row(
+                c.name,
+                ctype,
+                _resource_cell(r["cpu_request"]),
+                _resource_cell(r["cpu_limit"]),
+                _resource_cell(r["memory_request"]),
+                _resource_cell(r["memory_limit"]),
+            )
+
+    _add_rows(init_containers, "init")
+    _add_rows(containers, "app")
+    return tbl
+
+
+def _build_security_table(workload_info):
+    # type: (object) -> Table
+    tbl = Table.grid(padding=(0, 1), expand=True)
+    tbl.add_column(style="dim", justify="right", no_wrap=True, min_width=_LABEL_WIDTH, max_width=_LABEL_WIDTH)
+    tbl.add_column(ratio=1)
+
+    def section(title):
+        tbl.add_row("", "")
+        tbl.add_row("", Text(title, style="bold bright_white underline"))
+
+    def row(label, value):
+        if isinstance(value, Text):
+            tbl.add_row(Text(label, style="dim"), value)
+        else:
+            tbl.add_row(Text(label, style="dim"), Text(str(value)))
+
+    psc = workload_info.pod_security_context
+    any_pod_sc = any(v is not None for v in psc.values() if not isinstance(v, list))
+    section("\U0001f3e0  Pod Security Context")
+    if any_pod_sc or psc.get("sysctls") or psc.get("supplemental_groups"):
+        row("Run As Non-Root", _icon_bool(psc["run_as_non_root"]))
+        if psc["run_as_user"] is not None:
+            row("Run As User", str(psc["run_as_user"]))
+        if psc["run_as_group"] is not None:
+            row("Run As Group", str(psc["run_as_group"]))
+        if psc["fs_group"] is not None:
+            row("FS Group", str(psc["fs_group"]))
+        if psc.get("seccomp_profile"):
+            sp = psc["seccomp_profile"]
+            row("Seccomp Profile", "{0}: {1}".format(sp.get("type", ""), sp.get("localhostProfile", "")))
+        if psc.get("sysctls"):
+            for s in psc["sysctls"]:
+                row("Sysctl", "{0}={1}".format(s.get("name", ""), s.get("value", "")))
+    else:
+        row("", Text("(none set)", style="dim"))
+
+    all_containers = workload_info.init_containers + workload_info.containers
+    for c in all_containers:
+        sc = c.security_context
+        label = "\U0001f4e6  {0} ({1})".format(c.name, "init" if c.is_init else "app")
+        section(label)
+
+        row("Privileged", _icon_bool(sc["privileged"], true_style="bold red", false_style="green"))
+        row("Allow Priv Escalation", _icon_bool(sc["allow_privilege_escalation"], true_style="bold red", false_style="green"))
+        row("Read-only Root FS", _icon_bool(sc["read_only_root_filesystem"], true_style="green", false_style="yellow"))
+        row("Run As Non-Root", _icon_bool(sc["run_as_non_root"]))
+        if sc["run_as_user"] is not None:
+            row("Run As User", str(sc["run_as_user"]))
+        if sc["capabilities_add"]:
+            row("Capabilities Add", Text(", ".join(sc["capabilities_add"]), style="bold red"))
+        else:
+            row("Capabilities Add", Text("(none)", style="dim"))
+        if sc["capabilities_drop"]:
+            row("Capabilities Drop", Text(", ".join(sc["capabilities_drop"]), style="green"))
+        else:
+            row("Capabilities Drop", Text("(none)", style="dim"))
+
+    tbl.add_row("", "")
+    return tbl
+
+
+def display_workload(manifest, workload_info):
+    # type: (object, object) -> None
+    """Print images, resources, and security analysis for a workload resource."""
+    _console.print()
+    _console.print(
+        Panel(
+            Text(manifest.source_label, style="bold white"),
+            title="[bold cyan]k8s-piper  \u2022  Workload Analysis[/bold cyan]",
+            border_style="cyan",
+            box=box.DOUBLE,
+        )
+    )
+
+    all_containers = workload_info.init_containers + workload_info.containers
+    if not all_containers:
+        _console.print("\n[yellow]No containers found in this manifest.[/yellow]\n")
+        return
+
+    # --- Images ---
+    _console.print()
+    _console.rule("[bold white]\U0001f4e6  Container Images[/bold white]")
+    _console.print(_build_images_table(workload_info.containers, workload_info.init_containers))
+
+    # --- Resources ---
+    _console.print()
+    _console.rule("[bold white]\U0001f4ca  Resource Requests & Limits[/bold white]")
+    _console.print(_build_resources_table(workload_info.containers, workload_info.init_containers))
+
+    # --- Security ---
+    _console.print()
+    _console.rule("[bold white]\U0001f6e1   Security Contexts[/bold white]")
+    _console.print(_build_security_table(workload_info))
+
+    _console.print()
+
+
+# ---------------------------------------------------------------------------
+# RBAC display
+# ---------------------------------------------------------------------------
+
+def _build_rules_table(rules):
+    # type: (list) -> Table
+    tbl = Table(box=box.SIMPLE_HEAD, show_header=True, expand=True)
+    tbl.add_column("API Groups")
+    tbl.add_column("Resources")
+    tbl.add_column("Verbs")
+    tbl.add_column("Resource Names", style="dim")
+
+    for rule in rules:
+        groups_str = ", ".join(rule["api_groups"]) if rule["api_groups"] else '""'
+        resources_str = ", ".join(rule["resources"]) if rule["resources"] else "(none)"
+        verbs_str = ", ".join(rule["verbs"]) if rule["verbs"] else "(none)"
+        names_str = ", ".join(rule["resource_names"]) if rule["resource_names"] else ""
+
+        if rule["wildcard_group"]:
+            groups_cell = Text(groups_str, style="bold red")
+        else:
+            groups_cell = Text(groups_str)
+
+        if rule["wildcard_resource"]:
+            resources_cell = Text(resources_str, style="bold red")
+        else:
+            resources_cell = Text(resources_str)
+
+        if rule["wildcard_verb"]:
+            verb_cell = Text(verbs_str + "  \u26a0", style="bold red")
+        elif rule["is_dangerous"]:
+            verb_cell = Text(verbs_str, style="bold red")
+        else:
+            verb_cell = Text(verbs_str)
+
+        tbl.add_row(groups_cell, resources_cell, verb_cell, names_str)
+
+    return tbl
+
+
+def _build_subjects_table(subjects):
+    # type: (list) -> Table
+    tbl = Table(box=box.SIMPLE_HEAD, show_header=True, expand=True)
+    tbl.add_column("Kind", style="cyan")
+    tbl.add_column("Name")
+    tbl.add_column("Namespace", style="dim")
+
+    for s in subjects:
+        tbl.add_row(
+            s.get("kind", ""),
+            s.get("name", ""),
+            s.get("namespace") or "(cluster-wide)",
+        )
+
+    return tbl
+
+
+def display_rbac(manifest, rbac_info):
+    # type: (object, object) -> None
+    """Print RBAC rules and subjects analysis."""
+    _console.print()
+    _console.print(
+        Panel(
+            Text(manifest.source_label, style="bold white"),
+            title="[bold cyan]k8s-piper  \u2022  RBAC Analysis[/bold cyan]",
+            border_style="cyan",
+            box=box.DOUBLE,
+        )
+    )
+
+    # Role / ClusterRole — show policy rules
+    if rbac_info.rules is not None and rbac_info.kind in ("Role", "ClusterRole"):
+        _console.print()
+        if rbac_info.rules:
+            _console.rule("[bold white]\U0001f4dc  Policy Rules[/bold white]")
+            _console.print(_build_rules_table(rbac_info.rules))
+
+            dangerous = [r for r in rbac_info.rules if r["is_dangerous"]]
+            if dangerous:
+                _console.print(
+                    "[bold red]\u26a0  {0} rule(s) grant wildcard verbs on wildcard resources \u2014 "
+                    "review carefully.[/bold red]".format(len(dangerous))
+                )
+        else:
+            _console.print("\n[yellow]No policy rules defined.[/yellow]")
+
+    # RoleBinding / ClusterRoleBinding — show role ref and subjects
+    if rbac_info.kind in ("RoleBinding", "ClusterRoleBinding"):
+        if rbac_info.role_ref:
+            _console.print()
+            _console.rule("[bold white]\U0001f517  Role Reference[/bold white]")
+            ref_tbl = Table.grid(padding=(0, 1))
+            ref_tbl.add_column(style="dim", justify="right", min_width=12)
+            ref_tbl.add_column()
+            ref_tbl.add_row("Kind", rbac_info.role_ref["kind"])
+            ref_tbl.add_row("Name", rbac_info.role_ref["name"])
+            ref_tbl.add_row("API Group", rbac_info.role_ref["api_group"] or '""')
+            _console.print(ref_tbl)
+
+        _console.print()
+        _console.rule("[bold white]\U0001f465  Subjects[/bold white]")
+        if rbac_info.subjects:
+            _console.print(_build_subjects_table(rbac_info.subjects))
+        else:
+            _console.print("[yellow]No subjects defined.[/yellow]")
 
     _console.print()

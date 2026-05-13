@@ -6,7 +6,15 @@ import sys
 from k8s_piper import __version__
 from k8s_piper.k8s_manifest import ParseError, parse_manifest
 from k8s_piper.cert_analyzer import extract_cert_bundles
-from k8s_piper.display import display_certs
+from k8s_piper.workload_analyzer import WORKLOAD_KINDS, extract_workload_info
+from k8s_piper.rbac_analyzer import RBAC_KINDS, extract_rbac_info
+from k8s_piper.display import display_certs, display_workload, display_rbac
+
+# Resource kinds that carry certificate data
+_CERT_KINDS = frozenset({"ConfigMap", "Secret"})
+
+# All recognised kinds
+_ALL_SUPPORTED_KINDS = _CERT_KINDS | WORKLOAD_KINDS | RBAC_KINDS
 
 
 def _build_parser():
@@ -15,16 +23,14 @@ def _build_parser():
         prog="k8s-piper",
         description=(
             "Pipe kubectl output into k8s-piper to analyse Kubernetes resources.\n\n"
+            "The resource type is detected automatically from the manifest kind.\n\n"
             "Examples:\n"
-            "  kubectl get cm ca -n mynamespace -o yaml | k8s-piper --certs\n"
-            "  kubectl get secret mycerts -n mynamespace -o yaml | k8s-piper --certs"
+            "  kubectl get cm ca -n mynamespace -o yaml | k8s-piper\n"
+            "  kubectl get secret mycerts -n mynamespace -o yaml | k8s-piper\n"
+            "  kubectl get deploy myapp -n mynamespace -o yaml | k8s-piper\n"
+            "  kubectl get clusterrole admin -o yaml | k8s-piper"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument(
-        "--certs",
-        action="store_true",
-        help="Extract and analyse X.509 certificate information",
     )
     parser.add_argument(
         "--version",
@@ -37,18 +43,12 @@ def _build_parser():
 def main():
     # type: () -> None
     parser = _build_parser()
-    args = parser.parse_args()
+    parser.parse_args()
 
-    # Check that at least one analysis mode is requested
-    if not args.certs:
-        parser.print_help()
-        sys.exit(0)
-
-    # Read manifest from stdin
     if sys.stdin.isatty():
         parser.error(
             "No input detected. Pipe kubectl output into k8s-piper.\n"
-            "  Example: kubectl get cm ca -n mynamespace -o yaml | k8s-piper --certs"
+            "  Example: kubectl get deploy myapp -n mynamespace -o yaml | k8s-piper"
         )
 
     raw = sys.stdin.read()
@@ -60,9 +60,25 @@ def main():
     except ParseError as exc:
         sys.exit("Error: {0}".format(exc))
 
-    if args.certs:
+    kind = manifest.kind
+
+    if kind in _CERT_KINDS:
         bundles = extract_cert_bundles(manifest)
         display_certs(manifest, bundles)
+    elif kind in WORKLOAD_KINDS:
+        info = extract_workload_info(manifest)
+        display_workload(manifest, info)
+    elif kind in RBAC_KINDS:
+        info = extract_rbac_info(manifest)
+        display_rbac(manifest, info)
+    else:
+        sys.exit(
+            "Error: unsupported resource kind '{0}'.\n"
+            "Supported kinds: {1}".format(
+                kind,
+                ", ".join(sorted(_ALL_SUPPORTED_KINDS)),
+            )
+        )
 
 
 if __name__ == "__main__":
