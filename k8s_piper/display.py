@@ -4,10 +4,11 @@ Compatible with rich 9.x (Python 3.6) through rich 13.x (Python 3.12+).
 Avoids rich.console.Group which was only introduced in rich 10.2.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from rich.console import Console
 from rich.panel import Panel
+from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
 from rich import box
@@ -255,10 +256,86 @@ def display_certs(manifest, bundles):
 
     _console.print()
 
+def pager_context():
+    """Return a context manager that sends all console output through a pager.
+
+    Usage::
+
+        with pager_context():
+            display_certs(...)
+            display_non_cert_data(...)
+    """
+    return _console.pager(styles=True)
+
 
 # ---------------------------------------------------------------------------
-# Workload display (images, resources, security)
+# Non-certificate data display (ConfigMap / Secret)
 # ---------------------------------------------------------------------------
+
+def _guess_lexer(key, value):
+    # type: (str, str) -> str
+    """Best-effort guess of a Pygments lexer name from the key extension or value content."""
+    lower = key.lower()
+    if lower.endswith((".yaml", ".yml")):
+        return "yaml"
+    if lower.endswith(".json"):
+        return "json"
+    if lower.endswith((".sh", ".bash")):
+        return "bash"
+    if lower.endswith(".xml"):
+        return "xml"
+    if lower.endswith((".properties", ".ini", ".cfg", ".conf")):
+        return "ini"
+    stripped = value.strip()
+    if stripped.startswith("{") or stripped.startswith("["):
+        return "json"
+    if stripped.startswith("---") or stripped.startswith("apiVersion:"):
+        return "yaml"
+    return "text"
+
+
+def display_non_cert_data(manifest, non_cert_data):
+    # type: (object, List[Tuple[str, str]]) -> None
+    """Print non-certificate data entries from a ConfigMap or Secret."""
+    if not non_cert_data:
+        return
+
+    _console.print()
+    _console.rule(
+        "[bold white]\U0001f4c4  Other Data Entries  ({0} key{1})[/bold white]".format(
+            len(non_cert_data),
+            "s" if len(non_cert_data) != 1 else "",
+        )
+    )
+
+    for key, value in non_cert_data:
+        lexer = _guess_lexer(key, value)
+        if lexer != "text":
+            content = Syntax(
+                value,
+                lexer,
+                theme="monokai",
+                word_wrap=True,
+                background_color="default",
+            )
+        else:
+            content = Text(value)
+
+        _console.print()
+        _console.print(
+            Panel(
+                content,
+                title="[bold cyan]{0}[/bold cyan]".format(key),
+                border_style="dim",
+                box=box.ROUNDED,
+                padding=(0, 1),
+            )
+        )
+
+    _console.print()
+
+
+
 
 def _icon_bool(value, true_style="green", false_style="dim"):
     # type: (Optional[bool], str, str) -> Text

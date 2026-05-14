@@ -327,3 +327,20 @@ def extract_cert_bundles(manifest):
             bundles.append(CertBundle(source_key=key, certs=certs, errors=errors))
 
     return bundles
+
+
+def extract_non_cert_data(manifest):
+    # type: (object) -> List[Tuple[str, str]]
+    """Return data entries from a manifest that contain no PEM certificates.
+
+    Returns a list of (key, value) pairs for every data entry whose value does
+    not contain at least one PEM certificate block.  Values that are empty or
+    None are skipped.
+    """
+    result = []
+    for key, value in manifest.data.items():
+        if not value:
+            continue
+        if not extract_pem_certs(value):
+            result.append((key, value))
+    return result

@@ -6,6 +6,7 @@ from k8s_piper.cert_analyzer import (
     CertBundle,
     analyse_certificate,
     extract_cert_bundles,
+    extract_non_cert_data,
     extract_pem_certs,
 )
 from k8s_piper.k8s_manifest import K8sManifest
@@ -237,3 +238,74 @@ class TestExtractCertBundles:
         bundles = extract_cert_bundles(manifest)
         assert len(bundles) == 1
         assert len(bundles[0].certs) == 1
+
+
+# ---------------------------------------------------------------------------
+# extract_non_cert_data
+# ---------------------------------------------------------------------------
+
+
+class TestExtractNonCertData:
+    def _make_configmap(self, data):
+        # type: (dict) -> str
+        lines = ["apiVersion: v1", "kind: ConfigMap", "metadata:", "  name: mymap", "  namespace: default", "data:"]
+        for key, value in data.items():
+            lines.append("  {0}: |".format(key))
+            for vline in value.splitlines():
+                lines.append("    " + vline)
+        return "\n".join(lines)
+
+    def test_non_cert_key_returned(self):
+        yaml_str = self._make_configmap({"config.yaml": "key: value\nother: data"})
+        manifest = K8sManifest(yaml_str)
+        result = extract_non_cert_data(manifest)
+        assert len(result) == 1
+        assert result[0][0] == "config.yaml"
+        assert "key: value" in result[0][1]
+
+    def test_cert_key_excluded(self, leaf_pem):
+        yaml_str = self._make_configmap({"ca.crt": leaf_pem})
+        manifest = K8sManifest(yaml_str)
+        result = extract_non_cert_data(manifest)
+        assert result == []
+
+    def test_mixed_keys_only_non_cert_returned(self, leaf_pem):
+        yaml_str = self._make_configmap({"ca.crt": leaf_pem, "app.conf": "host=localhost"})
+        manifest = K8sManifest(yaml_str)
+        result = extract_non_cert_data(manifest)
+        assert len(result) == 1
+        assert result[0][0] == "app.conf"
+
+    def test_multiple_non_cert_keys(self):
+        yaml_str = self._make_configmap({"a.txt": "hello", "b.json": '{"x": 1}'})
+        manifest = K8sManifest(yaml_str)
+        result = extract_non_cert_data(manifest)
+        assert len(result) == 2
+        keys = [k for k, _ in result]
+        assert "a.txt" in keys
+        assert "b.json" in keys
+
+    def test_empty_data(self):
+        yaml_str = "\n".join([
+            "apiVersion: v1", "kind: ConfigMap",
+            "metadata:", "  name: empty", "  namespace: default",
+        ])
+        manifest = K8sManifest(yaml_str)
+        result = extract_non_cert_data(manifest)
+        assert result == []
+
+    def test_secret_non_cert_decoded(self):
+        import base64
+        import yaml
+        encoded = base64.b64encode(b"mysecretpassword").decode()
+        secret = {
+            "apiVersion": "v1",
+            "kind": "Secret",
+            "metadata": {"name": "mysecret", "namespace": "default"},
+            "data": {"password": encoded},
+        }
+        manifest = K8sManifest(yaml.dump(secret))
+        result = extract_non_cert_data(manifest)
+        assert len(result) == 1
+        assert result[0][0] == "password"
+        assert result[0][1] == "mysecretpassword"
