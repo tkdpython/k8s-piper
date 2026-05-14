@@ -61,7 +61,8 @@ include = ["k8s_piper*"]
 
 [tool.setuptools_scm]
 version_file = "k8s_piper/_version.py"
-fallback_version = "0.1.0"
+# Use a sentinel when SCM metadata is unavailable; tagged builds still supply the real version.
+fallback_version = "0.0.0"
 # PyPI rejects local version identifiers like +g<sha>, so omit them from builds.
 local_scheme = "no-local-version"
 
