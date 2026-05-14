@@ -335,8 +335,6 @@ def display_non_cert_data(manifest, non_cert_data):
     _console.print()
 
 
-
-
 def _icon_bool(value, true_style="green", false_style="dim"):
     # type: (Optional[bool], str, str) -> Text
     """Return a styled tick/cross Text for a boolean value."""
