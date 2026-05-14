@@ -37,6 +37,7 @@ class K8sManifest:
                 )
             )
 
+        self._doc = doc
         self.kind = doc.get("kind", "Unknown")
         self.api_version = doc.get("apiVersion", "")
         metadata = doc.get("metadata") or {}
@@ -70,6 +71,12 @@ class K8sManifest:
         for key, value in string_data.items():
             if value is not None:
                 self.data[key] = str(value)
+
+    @property
+    def doc(self):
+        # type: () -> dict
+        """The full parsed YAML document as a dict."""
+        return self._doc
 
     @property
     def source_label(self):
