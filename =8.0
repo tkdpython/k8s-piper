@@ -1,0 +1,45 @@
+Defaulting to user installation because normal site-packages is not writeable
+Obtaining file:///home/runner/work/k8s-piper/k8s-piper
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Checking if build backend supports build_editable: started
+  Checking if build backend supports build_editable: finished with status 'done'
+  Getting requirements to build editable: started
+  Getting requirements to build editable: finished with status 'done'
+  Preparing editable metadata (pyproject.toml): started
+  Preparing editable metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: build in /home/runner/.local/lib/python3.12/site-packages (1.5.0)
+Collecting setuptools-scm[toml]
+  Using cached setuptools_scm-10.0.5-py3-none-any.whl.metadata (6.5 kB)
+Requirement already satisfied: packaging>=24.0 in /usr/lib/python3/dist-packages (from build) (24.0)
+Requirement already satisfied: pyproject_hooks in /home/runner/.local/lib/python3.12/site-packages (from build) (1.2.0)
+Collecting vcs-versioning>=1.0.0.dev0 (from setuptools-scm[toml])
+  Using cached vcs_versioning-1.1.1-py3-none-any.whl.metadata (1.6 kB)
+Requirement already satisfied: setuptools in /usr/lib/python3/dist-packages (from setuptools-scm[toml]) (68.1.2)
+Requirement already satisfied: cryptography>=2.8 in /usr/lib/python3/dist-packages (from k8s-piper==0.2.1.dev0) (41.0.7)
+Requirement already satisfied: PyYAML>=5.1 in /usr/lib/python3/dist-packages (from k8s-piper==0.2.1.dev0) (6.0.1)
+Requirement already satisfied: rich>=9.0 in /usr/lib/python3/dist-packages (from k8s-piper==0.2.1.dev0) (13.7.1)
+Requirement already satisfied: pytest>=6.0 in /home/runner/.local/lib/python3.12/site-packages (from k8s-piper==0.2.1.dev0) (9.0.3)
+Requirement already satisfied: pytest-cov>=2.0 in /home/runner/.local/lib/python3.12/site-packages (from k8s-piper==0.2.1.dev0) (7.1.0)
+Requirement already satisfied: iniconfig>=1.0.1 in /home/runner/.local/lib/python3.12/site-packages (from pytest>=6.0->k8s-piper==0.2.1.dev0) (2.3.0)
+Requirement already satisfied: pluggy<2,>=1.5 in /home/runner/.local/lib/python3.12/site-packages (from pytest>=6.0->k8s-piper==0.2.1.dev0) (1.6.0)
+Requirement already satisfied: pygments>=2.7.2 in /usr/lib/python3/dist-packages (from pytest>=6.0->k8s-piper==0.2.1.dev0) (2.17.2)
+Requirement already satisfied: coverage>=7.10.6 in /home/runner/.local/lib/python3.12/site-packages (from coverage[toml]>=7.10.6->pytest-cov>=2.0->k8s-piper==0.2.1.dev0) (7.14.0)
+Requirement already satisfied: markdown-it-py>=2.2.0 in /usr/lib/python3/dist-packages (from rich>=9.0->k8s-piper==0.2.1.dev0) (3.0.0)
+Requirement already satisfied: mdurl~=0.1 in /usr/lib/python3/dist-packages (from markdown-it-py>=2.2.0->rich>=9.0->k8s-piper==0.2.1.dev0) (0.1.2)
+Using cached vcs_versioning-1.1.1-py3-none-any.whl (79 kB)
+Using cached setuptools_scm-10.0.5-py3-none-any.whl (21 kB)
+Checking if build backend supports build_editable: started
+Checking if build backend supports build_editable: finished with status 'done'
+Building wheels for collected packages: k8s-piper
+  Building editable for k8s-piper (pyproject.toml): started
+  Building editable for k8s-piper (pyproject.toml): finished with status 'done'
+  Created wheel for k8s-piper: filename=k8s_piper-0.2.1.dev0-0.editable-py3-none-any.whl size=6177 sha256=7827314cc3eed8bf5769821bf49c077b326db18c41dbda9ffb6ac1867e6f0dce
+  Stored in directory: /tmp/pip-ephem-wheel-cache-guq1legx/wheels/d0/f5/15/f39affa655bdca503aae68edc3a59256f155998d224ef680d0
+Successfully built k8s-piper
+Installing collected packages: vcs-versioning, setuptools-scm, k8s-piper
+  Attempting uninstall: k8s-piper
+    Found existing installation: k8s-piper 0.1.0
+    Uninstalling k8s-piper-0.1.0:
+      Successfully uninstalled k8s-piper-0.1.0
+Successfully installed k8s-piper-0.2.1.dev0 setuptools-scm-10.0.5 vcs-versioning-1.1.1
