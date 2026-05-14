@@ -2,5 +2,5 @@
 
 try:
     from k8s_piper._version import version as __version__
-except ImportError:
+except (ImportError, SyntaxError):
     __version__ = "0.0.0.dev0"
